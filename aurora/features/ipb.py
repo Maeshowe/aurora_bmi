@@ -21,15 +21,14 @@ Design Note:
     IPB is count-weighted (breadth), VPB is dollar-weighted (money flow).
 
     VPB/IPB Divergence is a MONITORED DIAGNOSTIC PROPERTY:
-    - VPB high + IPB low = Narrow leadership (mega-cap driven rally)
+    - VPB high + IPB low = Narrow leadership (mega-cap driven participation)
     - VPB low + IPB high = Broad but weak participation
-    - Both high = Healthy broad rally
+    - Both high = Healthy broad participation
     - Both low = Broad weakness
 """
 
 import logging
 from dataclasses import dataclass
-
 
 logger = logging.getLogger(__name__)
 

@@ -20,7 +20,6 @@ from aurora.core.types import BaselineStatus, FeatureSet
 from aurora.normalization.methods import percentile_rank, zscore_normalize
 from aurora.normalization.rolling import MultiFeatureRollingCalculator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -259,6 +258,7 @@ class NormalizationPipeline:
         # use sigmoid blending to give meaningful values (not hard 0/100)
         if pct <= 1.0 or pct >= 99.0:
             import numpy as np
+
             from aurora.normalization.methods import sigmoid_scale
 
             # Calculate historical mean and std for sigmoid scaling

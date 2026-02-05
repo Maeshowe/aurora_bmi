@@ -59,9 +59,9 @@ percentile:
 #   - IPB: How BROAD is participation? (count-weighted)
 #
 #   Their divergence is a MONITORED DIAGNOSTIC PROPERTY:
-#   - VPB high + IPB low = Narrow leadership (mega-cap driven rally)
+#   - VPB high + IPB low = Narrow leadership (mega-cap driven participation)
 #   - VPB low + IPB high = Broad but weak participation
-#   - Both high = Healthy broad rally
+#   - Both high = Healthy broad participation
 #   - Both low = Broad weakness
 #
 #   This is NOT an error - it's diagnostic information.

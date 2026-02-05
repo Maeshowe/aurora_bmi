@@ -16,7 +16,6 @@ from aurora.core.exceptions import DataFetchError, RateLimitError
 from aurora.ingest.cache import CacheManager
 from aurora.ingest.rate_limiter import TokenBucketLimiter
 
-
 logger = logging.getLogger(__name__)
 
 

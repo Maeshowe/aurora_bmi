@@ -13,7 +13,6 @@ from aurora.features.ipo import InstitutionalParticipationOverlay
 from aurora.features.sbc import StructuralBreadthConfirmation
 from aurora.features.vpb import VolumeParticipationBreadth
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -128,6 +127,10 @@ class FeatureAggregator:
         ma_breadth = ma_breadth or {}
         volume_data = volume_data or {}
 
+        # Cross-section sanity check: warn if distribution collapses
+        if polygon_breadth:
+            self._check_distribution_collapse(polygon_breadth)
+
         return self.calculate(
             trade_date=trade_date,
             v_adv=polygon_breadth.get("v_adv"),
@@ -195,3 +198,31 @@ class FeatureAggregator:
             return None, "Cannot calculate divergence: missing VPB or IPB"
 
         return self.ipb_calc.calculate_divergence(feature_set.ipb, feature_set.vpb)
+
+    def _check_distribution_collapse(self, breadth: dict) -> None:
+        """
+        Warn if breadth distribution collapses (crisis indicator).
+
+        A collapse occurs when >90% or <10% of issues are advancing,
+        indicating extreme one-sided market conditions.
+
+        Args:
+            breadth: Dict with n_adv and n_dec counts
+        """
+        n_adv = breadth.get("n_adv") or 0
+        n_dec = breadth.get("n_dec") or 0
+        total = n_adv + n_dec
+
+        if total > 0:
+            adv_ratio = n_adv / total
+            # Collapse = extreme one-sided breadth (>90% or <10%)
+            if adv_ratio > 0.90:
+                logger.warning(
+                    f"Distribution collapse detected: {adv_ratio*100:.1f}% advancing "
+                    f"({n_adv}/{total}) - near-universal participation"
+                )
+            elif adv_ratio < 0.10:
+                logger.warning(
+                    f"Distribution collapse detected: {adv_ratio*100:.1f}% advancing "
+                    f"({n_adv}/{total}) - near-universal non-participation"
+                )

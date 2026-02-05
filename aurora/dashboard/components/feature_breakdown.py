@@ -9,7 +9,6 @@ from typing import Any
 import plotly.graph_objects as go
 import streamlit as st
 
-
 FEATURE_NAMES_FULL = {
     "VPB": "Volume Participation Breadth",
     "IPB": "Issue Participation Breadth",

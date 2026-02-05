@@ -10,7 +10,7 @@ This is used for the SBC (Structural Breadth Confirmation) component.
 import asyncio
 import json
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -36,7 +36,7 @@ def _load_cached_result(trade_date: date) -> "MABreadthResult | None":
         return None
 
     try:
-        with open(cache_path, "r") as f:
+        with open(cache_path) as f:
             data = json.load(f)
 
         return MABreadthResult(
@@ -77,8 +77,9 @@ def _save_cached_result(trade_date: date, result: "MABreadthResult") -> None:
         logger.warning(f"Failed to save cache for {trade_date}: {e}")
 
 
-# Sample universe for MA breadth calculation
-# Top market cap stocks for representative breadth
+# Sample universe for MA breadth calculation (FALLBACK ONLY)
+# Used when UniverseSnapshot is unavailable (error scenario).
+# Pipeline should always provide universe_tickers from UniverseBuilder.
 SAMPLE_UNIVERSE = [
     # Mega-cap tech
     "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
@@ -121,6 +122,7 @@ async def calculate_ma_breadth(
     sample_size: int = 50,
     trade_date: date | None = None,
     use_cache: bool = True,
+    universe_tickers: list[str] | None = None,
 ) -> MABreadthResult:
     """
     Calculate percentage of stocks above MA50 and MA200.
@@ -133,13 +135,32 @@ async def calculate_ma_breadth(
         sample_size: Number of stocks to sample (default 50)
         trade_date: Date for caching (default: today)
         use_cache: Whether to use cached results (default: True)
+        universe_tickers: Optional list of tickers from UniverseBuilder.
+                         If provided, samples from this instead of SAMPLE_UNIVERSE.
 
     Returns:
         MABreadthResult with percentages
     """
+    import random
+
     settings = settings or get_settings()
     trade_date = trade_date or date.today()
-    universe = SAMPLE_UNIVERSE[:sample_size]
+
+    # Use provided universe or fall back to hardcoded sample
+    if universe_tickers and len(universe_tickers) > 0:
+        # Sample randomly from universe for diversity
+        if len(universe_tickers) > sample_size:
+            universe = random.sample(universe_tickers, sample_size)
+        else:
+            universe = universe_tickers
+        logger.info(f"MA Breadth: using {len(universe)} stocks from AURORA universe")
+    else:
+        # FALLBACK: UniverseSnapshot unavailable - using hardcoded sample
+        universe = SAMPLE_UNIVERSE[:sample_size]
+        logger.warning(
+            f"MA Breadth: FALLBACK to {len(universe)} hardcoded stocks "
+            "(UniverseSnapshot unavailable)"
+        )
 
     # Check cache first
     if use_cache:

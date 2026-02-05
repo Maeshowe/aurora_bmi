@@ -17,7 +17,6 @@ import pandas as pd
 
 from aurora.core.exceptions import CacheError
 
-
 logger = logging.getLogger(__name__)
 
 

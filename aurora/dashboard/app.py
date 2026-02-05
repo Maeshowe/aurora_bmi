@@ -11,6 +11,7 @@ from aurora.dashboard.components.band_indicator import render_band_indicator
 from aurora.dashboard.components.feature_breakdown import render_feature_breakdown
 from aurora.dashboard.components.score_card import render_score_card
 from aurora.pipeline.daily import DailyPipeline
+from aurora.universe import UniverseBuilder
 
 
 def main() -> None:
@@ -87,6 +88,50 @@ def main() -> None:
     with col2:
         # Band indicator (semicircular gauge)
         render_band_indicator(latest["band"], score=latest["score"])
+
+    # Universe Statistics
+    st.markdown("### AURORA Universe")
+    universe_builder = UniverseBuilder()
+    try:
+        from datetime import date
+        latest_date = date.fromisoformat(str(latest["date"]))
+        universe = universe_builder.load_snapshot(latest_date)
+        if universe:
+            ucol1, ucol2, ucol3, ucol4 = st.columns(4)
+            with ucol1:
+                st.metric("Stocks", f"{universe.count:,}")
+            with ucol2:
+                if universe.median_market_cap:
+                    st.metric("Median MCap", f"${universe.median_market_cap/1e9:.1f}B")
+                else:
+                    st.metric("Median MCap", "N/A")
+            with ucol3:
+                if universe.median_volume:
+                    st.metric("Median Volume", f"{universe.median_volume/1e6:.1f}M")
+                else:
+                    st.metric("Median Volume", "N/A")
+            with ucol4:
+                if universe.size_change_pct is not None:
+                    delta_str = f"{universe.size_change_pct*100:+.1f}%"
+                    st.metric(
+                        "Size Change",
+                        delta_str,
+                        delta=delta_str if universe.size_change_warning else None,
+                        delta_color="inverse" if universe.size_change_warning else "off",
+                    )
+                else:
+                    st.metric("Size Change", "N/A")
+
+            if universe.size_change_warning:
+                st.warning(
+                    f"Universe size changed significantly: "
+                    f"{universe.previous_count} → {universe.count} "
+                    f"({universe.size_change_pct*100:+.1f}%)"
+                )
+        else:
+            st.info("No universe snapshot available for this date.")
+    except Exception as e:
+        st.warning(f"Could not load universe data: {e}")
 
     # Explanation
     st.markdown("### Interpretation")

@@ -5,7 +5,7 @@ Generates human-readable explanations of BMI results.
 """
 
 import logging
-from typing import Sequence
+from collections.abc import Sequence
 
 from aurora.core.constants import VPB_IPB_DIVERGENCE_WARN
 from aurora.core.types import Band, BaselineStatus, ScoreComponent
@@ -15,7 +15,6 @@ from aurora.explain.templates import (
     DRIVER_TEMPLATES,
     STATUS_TEMPLATES,
 )
-
 
 logger = logging.getLogger(__name__)
 

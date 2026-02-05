@@ -240,3 +240,75 @@ class FeatureSet:
 ZScore: TypeAlias = float  # NOT clipped - preserves tail information
 Percentile: TypeAlias = float  # 0-100, the ONLY bounding mechanism
 TradeDate: TypeAlias = date
+
+
+# =============================================================================
+# UNIVERSE TYPES
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class UniverseConfig:
+    """
+    Configuration for AURORA universe construction.
+
+    CRITERIA (STRICT):
+    - Market Cap > $2B
+    - Price > $5
+    - Average Daily Volume (20D) > 1M shares
+    - Listed on NYSE or NASDAQ
+    - (Optional) Free Float Market Cap > $1B if data available
+
+    Design Rule:
+        If universe quality is uncertain, reduce universe.
+        Better to be slightly narrow than slightly wrong.
+    """
+
+    min_market_cap: int = 2_000_000_000  # $2B
+    min_price: float = 5.0
+    min_volume: int = 1_000_000  # 1M shares
+    exchanges: tuple[str, ...] = ("NYSE", "NASDAQ")
+    min_free_float_cap: int | None = 1_000_000_000  # $1B (optional)
+    max_results: int = 2000
+    size_change_warn_pct: float = 0.10  # Warn if ±10% day-over-day
+
+
+@dataclass(frozen=True)
+class UniverseSnapshot:
+    """
+    Daily universe snapshot for AURORA BMI.
+
+    Immutable once written. Downstream components must only read.
+    """
+
+    trade_date: date
+    tickers: tuple[str, ...]
+    count: int
+    median_market_cap: float | None
+    median_volume: float | None
+    previous_count: int | None = None
+
+    @property
+    def size_change_pct(self) -> float | None:
+        """Percentage change from previous day's universe size."""
+        if self.previous_count is None or self.previous_count == 0:
+            return None
+        return (self.count - self.previous_count) / self.previous_count
+
+    @property
+    def size_change_warning(self) -> bool:
+        """True if size changed by more than 10%."""
+        change = self.size_change_pct
+        return change is not None and abs(change) > 0.10
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for serialization."""
+        return {
+            "date": self.trade_date.isoformat(),
+            "tickers": list(self.tickers),
+            "count": self.count,
+            "median_market_cap": self.median_market_cap,
+            "median_volume": self.median_volume,
+            "previous_count": self.previous_count,
+            "size_change_pct": self.size_change_pct,
+        }

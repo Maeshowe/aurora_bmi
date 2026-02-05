@@ -13,7 +13,6 @@ from aurora.ingest.base import BaseAPIClient
 from aurora.ingest.cache import CacheManager
 from aurora.ingest.rate_limiter import TokenBucketLimiter
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -19,7 +19,7 @@ from typing import Any
 import pandas as pd
 
 from aurora.core.config import Settings, get_settings
-from aurora.core.types import BMIResult, FeatureSet
+from aurora.core.types import BMIResult, FeatureSet, UniverseSnapshot
 from aurora.explain.generator import ExplanationGenerator
 from aurora.features.aggregator import FeatureAggregator
 from aurora.features.ma_breadth import calculate_ma_breadth
@@ -28,7 +28,7 @@ from aurora.ingest.polygon import PolygonClient
 from aurora.ingest.unusual_whales import UnusualWhalesClient
 from aurora.normalization.pipeline import NormalizationPipeline
 from aurora.scoring.engine import BMIEngine
-
+from aurora.universe import UniverseBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +59,16 @@ class DailyPipeline:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize components
+        self.universe_builder = UniverseBuilder(settings=self.settings)
         self.feature_aggregator = FeatureAggregator()
         self.normalization = NormalizationPipeline(
             history_dir=self.output_dir,
         )
         self.explanation_gen = ExplanationGenerator()
         self.engine = BMIEngine(normalization_pipeline=self.normalization)
+
+        # Current universe (populated during run)
+        self._universe: UniverseSnapshot | None = None
 
     async def run(
         self,
@@ -83,6 +87,9 @@ class DailyPipeline:
         """
         trade_date = trade_date or date.today()
         logger.info(f"Starting AURORA BMI calculation for {trade_date}")
+
+        # Step 0: Build universe (cached per day)
+        self._universe = await self._build_universe(trade_date, force_refresh)
 
         # Load historical data for baselines
         self.normalization.load_history(up_to_date=trade_date)
@@ -107,6 +114,46 @@ class DailyPipeline:
         )
 
         return result
+
+    async def _build_universe(
+        self,
+        trade_date: date,
+        force_refresh: bool = False,
+    ) -> UniverseSnapshot:
+        """
+        Build or load the daily universe.
+
+        The universe is cached per day. Subsequent runs use the cached snapshot.
+
+        Args:
+            trade_date: Date for universe
+            force_refresh: Force rebuild even if cached
+
+        Returns:
+            UniverseSnapshot with quality-filtered tickers
+        """
+        async with self.universe_builder:
+            universe = await self.universe_builder.build_universe(
+                trade_date=trade_date,
+                force_rebuild=force_refresh,
+            )
+
+        logger.info(
+            f"AURORA Universe: {universe.count} stocks | "
+            f"MCap: ${universe.median_market_cap/1e9:.1f}B | "
+            f"Vol: {universe.median_volume/1e6:.1f}M"
+            if universe.median_market_cap and universe.median_volume
+            else f"AURORA Universe: {universe.count} stocks"
+        )
+
+        # Warn on significant size change
+        if universe.size_change_warning:
+            logger.warning(
+                f"Universe size changed by {universe.size_change_pct*100:+.1f}% "
+                f"({universe.previous_count} -> {universe.count})"
+            )
+
+        return universe
 
     async def _fetch_data(self, trade_date: date) -> dict[str, Any]:
         """
@@ -177,12 +224,15 @@ class DailyPipeline:
 
         # Try to get real MA breadth data (enhances SBC accuracy)
         # Results are cached per day to avoid repeated API calls
+        # Uses AURORA universe if available for better diversity
         try:
+            universe_tickers = list(self._universe.tickers) if self._universe else None
             ma_result = await calculate_ma_breadth(
                 settings=self.settings,
-                sample_size=20,  # Top 20 stocks - balance speed vs accuracy
+                sample_size=50,  # Increased from 20 - universe provides diversity
                 trade_date=trade_date,
                 use_cache=True,
+                universe_tickers=universe_tickers,
             )
             if ma_result.is_valid:
                 data["ma_breadth"] = {
@@ -209,7 +259,7 @@ class DailyPipeline:
 
                     # Get volume data via bulk quotes
                     gainer_symbols = [g["symbol"] for g in gainers if "symbol" in g]
-                    loser_symbols = [l["symbol"] for l in losers if "symbol" in l]
+                    loser_symbols = [loser["symbol"] for loser in losers if "symbol" in loser]
 
                     gainer_quotes = await fmp.get_bulk_quotes(gainer_symbols[:25])
                     loser_quotes = await fmp.get_bulk_quotes(loser_symbols[:25])
@@ -311,9 +361,6 @@ class DailyPipeline:
         Returns:
             Path to saved file
         """
-        # Convert to dict
-        data = result.to_dict()
-
         # Flatten components for DataFrame
         row = {
             "date": result.trade_date.isoformat(),

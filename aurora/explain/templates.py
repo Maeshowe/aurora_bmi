@@ -7,7 +7,6 @@ of the BMI score and its components.
 
 from aurora.core.types import Band
 
-
 # Base explanation templates by band
 BAND_TEMPLATES: dict[Band, str] = {
     Band.GREEN: "Market breadth is healthy with strong, broad-based participation.",

@@ -9,17 +9,15 @@ Orchestrates the full scoring process:
 """
 
 import logging
-from datetime import date
 
 from aurora.core.constants import VPB_IPB_DIVERGENCE_WARN
-from aurora.core.types import Band, BaselineStatus, BMIResult, FeatureSet, ScoreComponent
+from aurora.core.types import Band, BMIResult, FeatureSet, ScoreComponent
 from aurora.normalization.pipeline import NormalizationPipeline
 from aurora.scoring.composite import (
     assess_vpb_ipb_divergence,
     calculate_composite,
     get_top_drivers,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +69,16 @@ class BMIEngine:
 
         # Step 2: Calculate composite score
         composite, components = calculate_composite(z_scores)
+
+        # Log VPB/IPB dispersion (cross-section diagnostic)
+        vpb_z = z_scores.get("VPB")
+        ipb_z = z_scores.get("IPB")
+        if vpb_z is not None and ipb_z is not None:
+            dispersion = vpb_z - ipb_z
+            logger.info(
+                f"VPB/IPB dispersion: VPB_z={vpb_z:.2f}, IPB_z={ipb_z:.2f}, "
+                f"divergence={dispersion:.2f}"
+            )
 
         # Update components with raw values from features
         components = self._enrich_components(components, features)

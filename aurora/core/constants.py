@@ -63,6 +63,19 @@ VPB_IPB_DIVERGENCE_WARN: Final[float] = 1.0  # Flag if |VPB_z - IPB_z| > 1.0
 FEATURE_NAMES: Final[tuple[str, ...]] = ("VPB", "IPB", "SBC", "IPO")
 
 # =============================================================================
+# UNIVERSE PARAMETERS (STRICT)
+# =============================================================================
+# Universe criteria for AURORA BMI. These are STRICT filters.
+# If quality is uncertain: reduce universe, never expand with noisy names.
+
+UNIVERSE_MIN_MARKET_CAP: Final[int] = 2_000_000_000  # $2B
+UNIVERSE_MIN_PRICE: Final[float] = 5.0  # $5
+UNIVERSE_MIN_VOLUME: Final[int] = 1_000_000  # 1M shares
+UNIVERSE_EXCHANGES: Final[tuple[str, ...]] = ("NYSE", "NASDAQ")
+UNIVERSE_MIN_FREE_FLOAT_CAP: Final[int] = 1_000_000_000  # $1B (optional)
+UNIVERSE_SIZE_CHANGE_WARN_PCT: Final[float] = 0.10  # Warn if ±10% day-over-day
+
+# =============================================================================
 # DESIGN DOCUMENTATION
 # =============================================================================
 # These constants encode the following design decisions:

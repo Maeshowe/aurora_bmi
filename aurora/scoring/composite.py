@@ -13,7 +13,6 @@ import logging
 from aurora.core.constants import WEIGHTS
 from aurora.core.types import ScoreComponent
 
-
 logger = logging.getLogger(__name__)
 
 

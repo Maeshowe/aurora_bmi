@@ -1,56 +1,51 @@
-# CLAUDE.md - AURORA BMI Project Guidance
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-AURORA BMI (Baseline-normalized Market Breadth Index) is a daily diagnostic system measuring market participation health. It is part of the OBSIDIAN MM ecosystem but operates independently.
+AURORA BMI (Baseline-normalized Market Breadth Index) is a deterministic, rule-based diagnostic system measuring market participation health. It produces a daily AURORA Score (0-100) and Band classification (GREEN/LIGHT_GREEN/YELLOW/RED). Part of the OBSIDIAN MM ecosystem but operates independently.
 
-## Key Commands
+## Commands
 
 ```bash
+# Install dependencies
+uv sync
+uv sync --group dev  # Include dev dependencies
+
 # Run daily calculation
-python scripts/run_daily.py
+uv run python scripts/run_daily.py
 
 # Check API connectivity
-python scripts/diagnose_api.py
+uv run python scripts/diagnose_api.py
 
 # Run tests
-pytest
+uv run pytest                                    # All tests
+uv run pytest tests/unit/test_normalization.py  # Single file
+uv run pytest -k "test_no_clipping"             # By name pattern
+uv run pytest -m unit                           # By marker (unit, integration, slow, api)
+
+# Linting and type checking
+uv run ruff check aurora/                       # Lint
+uv run ruff check aurora/ --fix                 # Lint with auto-fix
+uv run mypy aurora/                             # Type check
 
 # Launch dashboard
-streamlit run aurora/dashboard/app.py
-```
-
-## Architecture
-
-```
-aurora_bmi/
-├── aurora/
-│   ├── core/           # Types, constants, config
-│   ├── ingest/         # API clients (Polygon, FMP, UW)
-│   ├── features/       # VPB, IPB, SBC, IPO calculators
-│   ├── normalization/  # Z-score (NO clipping), percentile
-│   ├── scoring/        # Composite score, engine
-│   ├── explain/        # Human-readable output
-│   ├── pipeline/       # Daily orchestration
-│   └── dashboard/      # Streamlit UI
-├── config/             # YAML configs
-├── data/               # Parquet storage
-├── scripts/            # CLI tools
-└── tests/              # Unit tests
+uv run streamlit run aurora/dashboard/app.py --server.port 8503
 ```
 
 ## Critical Design Decisions (DO NOT CHANGE)
 
 ### 1. NO Z-SCORE CLIPPING
 Z-scores are NOT clipped at feature level. Extreme values (tail information) MUST be preserved.
-- Percentile ranking is the ONLY bounding mechanism
+- Percentile ranking is the ONLY bounding mechanism (applied to final composite)
 - Crisis signals live in the tails
 - See: `aurora/normalization/methods.py`
 
 ### 2. VPB/IPB DIVERGENCE IS A FEATURE
-VPB and IPB are correlated but measure different dimensions:
-- VPB: dollar-weighted
-- IPB: count-weighted
+VPB (dollar-weighted) and IPB (count-weighted) measure different dimensions:
+- High VPB + Low IPB = Narrow leadership (mega-cap driven)
+- Low VPB + High IPB = Broad but weak participation
 Their divergence is a MONITORED DIAGNOSTIC, not an error.
 
 ### 3. IPO DUAL FILTER
@@ -59,85 +54,60 @@ Stocks must satisfy BOTH conditions:
 - `RelVol > median(universe)`
 
 ### 4. NO DARK POOL DATA
-Dark pool analysis belongs to OBSIDIAN, not AURORA.
-See: `aurora/ingest/unusual_whales.py` for guardrail.
+Dark pool analysis belongs to OBSIDIAN, not AURORA. See guardrail in `aurora/ingest/unusual_whales.py`.
 
-## Weights (FROZEN)
-
+### 5. Weights and Thresholds are FROZEN
 ```python
-WEIGHTS = {
-    "VPB": 0.30,  # Volume Participation Breadth
-    "IPB": 0.25,  # Issue Participation Breadth
-    "SBC": 0.25,  # Structural Breadth Confirmation
-    "IPO": 0.20,  # Institutional Participation Overlay
-}
+WEIGHTS = {"VPB": 0.30, "IPB": 0.25, "SBC": 0.25, "IPO": 0.20}
 ```
-
-**Do NOT tune these weights.** They are conceptual allocations.
-
-## Band Thresholds (FROZEN)
-
-| Score | Band |
-|-------|------|
-| 0-25 | GREEN |
-| 25-50 | LIGHT_GREEN |
-| 50-75 | YELLOW |
-| 75-100 | RED |
+Do NOT tune these weights or band thresholds (0-25 GREEN, 25-50 LIGHT_GREEN, 50-75 YELLOW, 75-100 RED).
 
 ## Guardrails
 
-- No ML
+- No ML or prediction logic
 - No price trend logic
-- No smoothing beyond rolling baseline
+- No smoothing beyond rolling baseline (W=63, N_min=21)
 - No combining with OBSIDIAN
 - No future-looking logic
-- Minimum observations: N_min = 21
-- Rolling window: W = 63
+
+## Data Flow
+
+```
+Sources (Polygon/FMP/UW) → Async Ingest → Feature Extraction (VPB,IPB,SBC,IPO)
+→ Z-score Normalization (63d rolling, NO clipping) → Composite Score
+→ Percentile Rank → INVERT → Band Classification + Explanation → Dashboard
+```
+
+Score inversion: High composite (good breadth) → LOW score → GREEN
 
 ## Key Files
 
 | Purpose | File |
 |---------|------|
-| Core types | `aurora/core/types.py` |
-| Constants | `aurora/core/constants.py` |
-| Normalization | `aurora/normalization/methods.py` |
-| Scoring | `aurora/scoring/engine.py` |
-| Daily pipeline | `aurora/pipeline/daily.py` |
+| Core types & enums | `aurora/core/types.py` |
+| Constants (weights, thresholds) | `aurora/core/constants.py` |
+| Z-score/percentile (NO clipping) | `aurora/normalization/methods.py` |
+| Scoring engine | `aurora/scoring/engine.py` |
+| Base API client | `aurora/ingest/base.py` |
 
-## Testing
+## Adding a New Data Source
 
-```bash
-# Run all tests
-pytest
-
-# Verify no clipping
-pytest tests/unit/test_normalization.py -v
-
-# Verify scoring bounds
-pytest tests/unit/test_scoring.py -v
-```
-
-## Common Tasks
-
-### Add new data source
-1. Create client in `aurora/ingest/`
-2. Inherit from `BaseAPIClient`
+1. Create client in `aurora/ingest/` inheriting from `BaseAPIClient`
+2. Implement `_auth_headers()` and `_auth_params()` methods
 3. Add to feature aggregator if needed
 4. NO dark pool endpoints
 
-### Modify explanation output
-1. Edit templates in `aurora/explain/templates.py`
-2. Update generator in `aurora/explain/generator.py`
+## Performance Notes
 
-### Update dashboard
-1. Components in `aurora/dashboard/components/`
-2. Main app in `aurora/dashboard/app.py`
+Current implementation is optimized for daily batch runs (~200-1000 stocks):
+- Median calculations use `sorted()` - acceptable for N<1000
+- Percentile rank is O(n) - acceptable for 63-day rolling window
+- No N² loops over symbols
 
-## DO NOT
+**If scaling beyond 10K symbols:** Consider numpy vectorization for median/percentile operations.
 
-- Clip z-scores at feature level
-- Add ML or prediction logic
-- Tune weights or thresholds
-- Import dark pool data
-- Mix with OBSIDIAN code
-- Add price trend logic
+**Clarity beats cleverness:** Prefer readable code over micro-optimizations.
+
+## Required API Keys
+
+Set in `.env` file: `POLYGON_API_KEY`, `FMP_API_KEY`, `UW_API_KEY`

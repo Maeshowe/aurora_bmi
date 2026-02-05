@@ -6,7 +6,6 @@ Displays the main BMI score with visual styling.
 
 import streamlit as st
 
-
 BAND_COLORS = {
     "GREEN": "#22c55e",
     "LIGHT_GREEN": "#84cc16",

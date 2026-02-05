@@ -6,14 +6,13 @@ Maintains rolling window statistics for baseline normalization.
 
 import logging
 from collections import deque
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Sequence
 
 import numpy as np
 
 from aurora.core.constants import MIN_OBSERVATIONS, ROLLING_WINDOW
-
 
 logger = logging.getLogger(__name__)
 
