@@ -70,6 +70,5 @@ Thumbs.db
 # Streamlit
 .streamlit/
 
-# Secrets (keep only documentation)
-secrets/*
-!secrets/*.md
+# Secrets
+secrets/

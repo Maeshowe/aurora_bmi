@@ -1,233 +1,253 @@
-# AURORA BMI v1.0
+# AURORA BMI
 
 **Baseline-normalized Market Breadth Index**
 
-A daily diagnostic system measuring market participation health. Part of the OBSIDIAN MM ecosystem but operates as an independent subsystem.
+| | |
+|---|---|
+| **Version** | 1.0 |
+| **Classification** | Internal Technical Reference |
+| **Scope** | Market Participation Health Diagnostic System |
+| **Instrument Universe** | US Equity Market (aggregate breadth) |
+| **Temporal Resolution** | Daily Aggregation (T+0 close) |
 
-## Overview
+---
 
-AURORA BMI answers the question: **"Is the current market move supported by broad, organized participation?"**
+## 1. System Definition
 
-### Output
+AURORA BMI is a deterministic, rule-based diagnostic engine that measures the health of market participation. The system produces one output per trading day:
 
-- **AURORA_BMI score**: 0-100 (lower = healthier breadth)
-- **Interpretation band**: GREEN / LIGHT_GREEN / YELLOW / RED
-- **Human-readable explanation** of drivers
+| Output | Type | Domain |
+|--------|------|--------|
+| **AURORA Score** | Continuous | U ∈ [0, 100] |
+| **Band Classification** | Categorical | {GREEN, LIGHT_GREEN, YELLOW, RED} |
 
-### Key Principle
+Both outputs are accompanied by a mandatory explainability vector identifying the top contributing features.
 
-**Breadth ≠ Price. Participation ≠ Direction.**
+**Scope exclusions.** The system measures PARTICIPATION, not DIRECTION. It does not generate signals, forecasts, or trade recommendations. All outputs are descriptive and diagnostic.
 
-AURORA measures participation health, NOT price outlook.
+---
 
-## Interpretation Bands
+## 2. Data Sources
 
-| Score | Band | Meaning |
-|-------|------|---------|
-| 0-25 | GREEN | Healthy, broad participation |
-| 25-50 | LIGHT_GREEN | Moderate participation |
-| 50-75 | YELLOW | Weakening participation |
-| 75-100 | RED | Poor, narrow participation |
+| Domain | Provider | Data Type |
+|--------|----------|-----------|
+| Advancing/Declining volume | Polygon.io | Grouped daily breadth |
+| Advancing/Declining issues | Polygon.io | Market internals |
+| % above MA50/MA200 | FMP API | Technical indicators |
+| Institutional lit flow | Unusual Whales | Volume spikes |
 
-## Components
+**Data quality rule.** If a source field is missing, the feature is excluded. No interpolation or imputation is applied.
 
-### 1. Volume Participation Breadth (VPB) - Weight: 30%
+---
+
+## 3. Feature Definitions
+
+### 3.1 Volume Participation Breadth (VPB)
+
+Measures where the MONEY is going (dollar-weighted).
+
 ```
 VPB_t = V_adv / (V_adv + V_dec)
 ```
-**Measures**: Where is the MONEY going? (dollar-weighted)
 
-### 2. Issue Participation Breadth (IPB) - Weight: 25%
+- VPB > 0.5 → More volume in advancing stocks
+- VPB < 0.5 → More volume in declining stocks
+
+### 3.2 Issue Participation Breadth (IPB)
+
+Measures how BROAD is participation (count-weighted).
+
 ```
 IPB_t = N_adv / (N_adv + N_dec)
 ```
-**Measures**: How BROAD is participation? (count-weighted)
 
-### 3. Structural Breadth Confirmation (SBC) - Weight: 25%
+- IPB > 0.5 → More stocks advancing
+- IPB < 0.5 → More stocks declining
+
+**VPB vs IPB Divergence (Diagnostic):**
+- VPB high + IPB low = Narrow leadership (mega-cap driven rally)
+- VPB low + IPB high = Broad but weak participation
+- Both high = Healthy broad rally
+- Both low = Broad weakness
+
+### 3.3 Structural Breadth Confirmation (SBC)
+
+Measures underlying market structure.
+
 ```
 SBC_t = (pct_MA50 + pct_MA200) / 2
 ```
-**Measures**: Is the breadth structurally sound?
 
-### 4. Institutional Participation Overlay (IPO) - Weight: 20%
+Where:
+- pct_MA50 = % of stocks trading above 50-day SMA
+- pct_MA200 = % of stocks trading above 200-day SMA
+
+Currently calculated from 20 mega-cap stocks (AAPL, MSFT, GOOGL, etc.) via FMP technical indicators API.
+
+### 3.4 Institutional Participation Overlay (IPO)
+
+Detects unusual institutional volume activity.
+
 ```
-IPO_t = count(RelVol_i > Q90(RelVol_i) AND RelVol_i > median(universe)) / N
-```
-**Measures**: Are institutions participating? (dual filter, lit exchange only)
-
-## Quick Start
-
-### Installation
-
-```bash
-# Clone the repository
-cd aurora_bmi
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or: venv\Scripts\activate  # Windows
-
-# Install dependencies
-pip install -e ".[dev]"
+IPO_t = count(RelVol_i > Q90 AND RelVol_i > median) / N
 ```
 
-### Configuration
+Dual filter prevents:
+- Small-cap noise (stock-specific Q90 not enough)
+- Crisis saturation (universe median as floor)
 
-1. Copy the environment template:
-```bash
-cp .env.example .env
+Data source: Unusual Whales lit exchange volume (NO dark pool).
+
+---
+
+## 4. Baseline Framework
+
+### 4.1 Parameters
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Rolling window | W = 63 days | ~1 quarter |
+| Minimum observations | N_min = 21 | ~1 month |
+
+### 4.2 Normalization
+
+Z-scores are calculated WITHOUT clipping (preserve tail information):
+
+```
+Z_X(t) = (X_t - μ_X) / σ_X
 ```
 
-2. Add your API keys to `.env`:
+**Rationale:** Breadth distributions have fat tails. Crisis signals live in the tails. Percentile ranking naturally compresses outliers.
+
+### 4.3 Baseline States
+
+| State | Condition | Behavior |
+|-------|-----------|----------|
+| COMPLETE | All features have n ≥ 21 | Full diagnostic |
+| PARTIAL | Some features have n < 21 | Partial diagnosis |
+| INSUFFICIENT | All features have n < 21 | No diagnosis |
+
+---
+
+## 5. Composite Score
+
+### 5.1 Formula
+
 ```
-POLYGON_KEY=your_key_here
-FMP_KEY=your_key_here
-UW_API_KEY=your_key_here  # Optional
-```
-
-### Usage
-
-```bash
-# Check API connectivity
-python scripts/diagnose_api.py
-
-# Run daily calculation
-python scripts/run_daily.py
-
-# Run for specific date
-python scripts/run_daily.py --date 2024-01-15
-
-# Launch dashboard
-streamlit run aurora/dashboard/app.py
+S_BMI = 0.30×Z_VPB + 0.25×Z_IPB + 0.25×Z_SBC + 0.20×Z_IPO
 ```
 
-## Design Decisions
+**Weights are FROZEN conceptual allocations. Do NOT tune.**
 
-### 1. No Z-score Clipping
+### 5.2 AURORA Score
 
-**Z-scores are NOT clipped at the feature level.**
+```
+AURORA = 100 - PercentileRank(S_BMI)
+```
 
-Breadth distributions have fat tails, and crisis signals live in those tails. Clipping at ±3σ would mask exactly the events we want to detect.
+**INVERTED** so that:
+- High composite (good breadth) → LOW score → GREEN
+- Low composite (poor breadth) → HIGH score → RED
 
-**Percentile ranking is the ONLY bounding mechanism**, applied to the final composite score.
+---
 
-### 2. VPB/IPB Correlation
+## 6. Interpretation Bands
 
-VPB and IPB are correlated but measure different dimensions:
-- **VPB**: Dollar-weighted (where is capital flowing?)
-- **IPB**: Count-weighted (how broad is participation?)
+| Score | Band | Meaning |
+|-------|------|---------|
+| 0-25 | GREEN | Healthy participation |
+| 25-50 | LIGHT_GREEN | Moderate participation |
+| 50-75 | YELLOW | Weakening participation |
+| 75-100 | RED | Poor participation |
 
-Their divergence is a **monitored diagnostic property**:
-- **VPB high + IPB low**: Narrow, mega-cap driven leadership
-- **VPB low + IPB high**: Broad but weak participation
+---
 
-### 3. IPO Dual Filter
+## 7. Architecture
 
-A stock counts toward IPO only if it satisfies BOTH:
-1. `RelVol > Q90(own history)` - unusual for that stock
-2. `RelVol > median(universe)` - unusual relative to market
+```
+Sources (Polygon / FMP / UW)
+    │
+    ▼
+Async Ingest → Raw Cache
+    │
+    ▼
+Feature Extraction (VPB, IPB, SBC, IPO)
+    │
+    ▼
+Normalization (63d rolling z-score)
+    │
+    ▼
+Composite Score → Percentile Rank → INVERT
+    │
+    ▼
+Band Classification + Explanation
+    │
+    ▼
+Dashboard (Streamlit)
+```
 
-This prevents small-cap noise and crisis-mode saturation.
+---
 
-## Architecture
+## 8. Project Structure
 
 ```
 aurora_bmi/
 ├── aurora/
-│   ├── core/           # Types, constants, config, exceptions
-│   ├── ingest/         # API clients (async)
-│   ├── features/       # VPB, IPB, SBC, IPO calculators
-│   ├── normalization/  # Z-score, percentile, rolling stats
-│   ├── scoring/        # Composite score, BMI engine
-│   ├── explain/        # Human-readable explanations
-│   ├── pipeline/       # Daily orchestration
+│   ├── core/           # Types, config, constants
+│   ├── ingest/         # API clients (Polygon, FMP, UW)
+│   ├── features/       # Feature calculators
+│   ├── normalization/  # Rolling z-score, percentile
+│   ├── scoring/        # Composite, engine
+│   ├── explain/        # Explanation generator
+│   ├── pipeline/       # Daily orchestrator
 │   └── dashboard/      # Streamlit UI
-├── config/             # YAML configuration files
-├── data/               # Parquet data storage
+├── config/             # YAML configuration
+├── data/
+│   ├── raw/            # API cache
+│   └── processed/      # BMI history
 ├── scripts/            # CLI entry points
-└── tests/              # Unit and integration tests
+└── tests/              # Unit tests
 ```
-
-## Guardrails
-
-| Rule | Enforcement |
-|------|-------------|
-| No ML | Pure arithmetic formulas only |
-| No price trend logic | VPB/IPB use volume/count, not prices |
-| No smoothing | Only rolling z-score normalization |
-| No OBSIDIAN crosstalk | Completely separate codebase |
-| No future-looking | All windows backward-only |
-| Minimum observations | N_min=21 required for baseline |
-| Explicit uncertainty | PARTIAL/INSUFFICIENT status flags |
-
-## API Reference
-
-### Python API
-
-```python
-from aurora.pipeline.daily import DailyPipeline
-import asyncio
-
-# Initialize pipeline
-pipeline = DailyPipeline()
-
-# Run calculation
-result = asyncio.run(pipeline.run())
-
-# Access result
-print(f"Score: {result.score}")
-print(f"Band: {result.band.value}")
-print(f"Explanation: {result.explanation}")
-```
-
-### CLI
-
-```bash
-# Daily calculation
-python scripts/run_daily.py [--date YYYY-MM-DD] [--force] [--verbose]
-
-# API diagnostics
-python scripts/diagnose_api.py
-
-# Dashboard
-streamlit run aurora/dashboard/app.py
-```
-
-## Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=aurora
-
-# Run specific test file
-pytest tests/unit/test_normalization.py
-
-# Run only fast tests
-pytest -m "not slow"
-```
-
-## Data Sources
-
-- **Polygon.io**: Advancing/declining volume & issues, MA breadth
-- **FMP**: Backup market internals
-- **Unusual Whales**: Lit exchange volume (NO dark pool - that's OBSIDIAN)
-
-## License
-
-MIT
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Write tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
 
 ---
 
-**AURORA BMI** - Measuring participation, not predicting price.
+## 9. Quick Start
+
+### Installation
+
+```bash
+cd aurora_bmi
+uv sync
+
+# Configure API keys
+cp .env.example .env
+nano .env
+```
+
+### Run Daily Pipeline
+
+```bash
+uv run python scripts/run_daily.py
+```
+
+### Launch Dashboard
+
+```bash
+uv run streamlit run aurora/dashboard/app.py --server.port 8503
+```
+
+---
+
+## 10. API Keys Required
+
+| Provider | Environment Variable |
+|----------|---------------------|
+| Polygon.io | POLYGON_API_KEY |
+| FMP | FMP_API_KEY |
+| Unusual Whales | UW_API_KEY |
+
+---
+
+## Disclaimer
+
+This software is provided for **educational and diagnostic purposes only**. It measures market participation health, not price direction. It does not generate trading signals and should not be used to make investment decisions.
