@@ -11,7 +11,7 @@ AURORA BMI (Baseline-normalized Market Breadth Index) is a deterministic, rule-b
 ```bash
 # Install dependencies
 uv sync
-uv sync --group dev  # Include dev dependencies
+uv sync --extra dev  # Include dev dependencies
 
 # Run daily calculation
 uv run python scripts/run_daily.py

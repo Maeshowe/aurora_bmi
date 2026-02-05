@@ -46,7 +46,7 @@ echo "uv $(uv --version) OK"
 
 # Step 3: Install dependencies with uv
 echo -e "\n${GREEN}[3/6] Installing dependencies...${NC}"
-uv sync --group dev
+uv sync --extra dev
 echo "Dependencies installed"
 
 # Step 4: Create required directories
