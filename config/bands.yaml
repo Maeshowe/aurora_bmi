@@ -1,0 +1,67 @@
+# AURORA BMI Interpretation Bands Configuration
+#
+# These bands represent PARTICIPATION HEALTH, not price outlook.
+# Lower score = healthier breadth (more participation)
+# Higher score = weaker breadth (less participation)
+
+bands:
+  GREEN:
+    min: 0
+    max: 25
+    description: "Healthy, broad participation"
+    interpretation: >
+      Market breadth is healthy with strong, broad-based participation.
+      Volume and issues are advancing across the market.
+
+  LIGHT_GREEN:
+    min: 25
+    max: 50
+    description: "Moderate participation"
+    interpretation: >
+      Market breadth shows moderate participation.
+      Participation is adequate but not exceptional.
+
+  YELLOW:
+    min: 50
+    max: 75
+    description: "Weakening participation"
+    interpretation: >
+      Market breadth is weakening.
+      Participation is declining or becoming narrow.
+
+  RED:
+    min: 75
+    max: 100
+    description: "Poor, narrow participation"
+    interpretation: >
+      Market breadth is poor with narrow participation.
+      The market move is not broadly supported.
+
+# Explanation templates
+templates:
+  base:
+    GREEN: "Market breadth is healthy with strong participation."
+    LIGHT_GREEN: "Market breadth shows moderate participation."
+    YELLOW: "Market breadth is weakening, participation declining."
+    RED: "Market breadth is poor, narrow participation."
+
+  drivers:
+    elevated: "{feature} is elevated (+{zscore:.1f}σ)"
+    depressed: "{feature} is depressed ({zscore:.1f}σ)"
+    neutral: "{feature} is neutral"
+
+  divergence:
+    narrow_leadership: >
+      VPB/IPB divergence detected: volume breadth exceeds issue breadth,
+      suggesting mega-cap driven, narrow leadership.
+    broad_weak: >
+      VPB/IPB divergence detected: issue breadth exceeds volume breadth,
+      suggesting broad but weak participation.
+
+# Display configuration
+display:
+  colors:
+    GREEN: "#22c55e"
+    LIGHT_GREEN: "#84cc16"
+    YELLOW: "#eab308"
+    RED: "#ef4444"

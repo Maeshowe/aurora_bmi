@@ -1,0 +1,66 @@
+# AURORA BMI Configuration
+# API sources and cache settings
+
+api_sources:
+  polygon:
+    base_url: "https://api.polygon.io"
+    endpoints:
+      market_status: "/v1/marketstatus/now"
+      grouped_daily: "/v2/aggs/grouped/locale/us/market/stocks/{date}"
+      ticker_details: "/v3/reference/tickers/{ticker}"
+      # Market breadth data from snapshot
+      snapshot: "/v2/snapshot/locale/us/markets/stocks/tickers"
+    rate_limit:
+      requests_per_minute: 5  # Free tier
+      burst_size: 5
+    timeout_seconds: 30
+    retry:
+      max_attempts: 3
+      backoff_factor: 2.0
+    auth:
+      type: query_param
+      param_name: "apiKey"
+
+  fmp:
+    base_url: "https://financialmodelingprep.com/api"
+    endpoints:
+      market_overview: "/v3/market-overview"
+      stock_screener: "/v3/stock-screener"
+      technical_indicator: "/v3/technical_indicator/daily/{symbol}"
+    rate_limit:
+      requests_per_minute: 10
+      burst_size: 5
+    timeout_seconds: 30
+    retry:
+      max_attempts: 3
+      backoff_factor: 2.0
+    auth:
+      type: query_param
+      param_name: "apikey"
+
+  unusual_whales:
+    base_url: "https://api.unusualwhales.com"
+    endpoints:
+      # LIT exchange endpoints only - NO dark pool
+      flow_alerts: "/api/flow/alerts"
+      stock_flow: "/api/stock/{ticker}/flow"
+    rate_limit:
+      requests_per_minute: 60
+      burst_size: 10
+    timeout_seconds: 30
+    retry:
+      max_attempts: 3
+      backoff_factor: 2.0
+    auth:
+      type: header
+      header_name: "Authorization"
+      prefix: "Bearer"
+    # GUARDRAIL: Dark pool data belongs to OBSIDIAN, not AURORA
+    excluded_endpoints:
+      - "/api/darkpool/*"
+
+cache:
+  enabled: true
+  ttl_days: 7
+  format: parquet
+  compression: snappy

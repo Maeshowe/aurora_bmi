@@ -1,0 +1,67 @@
+# AURORA BMI Normalization Configuration
+#
+# CRITICAL DESIGN DECISION:
+# Z-scores are NOT clipped at feature level.
+# Extreme values (tail information) are preserved.
+# Percentile ranking is the ONLY bounding mechanism applied to the final score.
+#
+# Rationale:
+# - Breadth distributions have fat tails
+# - Crisis signals live in the tails
+# - Clipping would mask exactly the events we want to detect
+
+normalization:
+  # Rolling window for baseline calculation (trading days)
+  default_window: 63  # ~3 months
+
+  # Minimum observations required for valid statistics
+  # If n < min_observations, feature is excluded and status = PARTIAL
+  min_observations: 21  # ~1 month
+
+  # Per-feature configuration
+  features:
+    VPB:
+      method: zscore
+      window: 63
+      clip: false  # NEVER clip - preserve tail information
+      description: "Volume Participation Breadth (dollar-weighted)"
+
+    IPB:
+      method: zscore
+      window: 63
+      clip: false  # NEVER clip - preserve tail information
+      description: "Issue Participation Breadth (count-weighted)"
+
+    SBC:
+      method: zscore
+      window: 63
+      clip: false  # NEVER clip - preserve tail information
+      description: "Structural Breadth Confirmation (MA50/200)"
+
+    IPO:
+      method: zscore
+      window: 63
+      clip: false  # NEVER clip - preserve tail information
+      description: "Institutional Participation Overlay (lit exchange)"
+
+# Percentile ranking configuration
+# This is the ONLY bounding mechanism
+percentile:
+  method: rank
+  output_range: [0, 100]
+  description: "Percentile rank bounds final score to [0, 100]"
+
+# Design documentation
+# ---------------------
+# VPB and IPB correlation:
+#   These metrics are correlated but measure different dimensions.
+#   - VPB: Where is the MONEY going? (dollar-weighted)
+#   - IPB: How BROAD is participation? (count-weighted)
+#
+#   Their divergence is a MONITORED DIAGNOSTIC PROPERTY:
+#   - VPB high + IPB low = Narrow leadership (mega-cap driven rally)
+#   - VPB low + IPB high = Broad but weak participation
+#   - Both high = Healthy broad rally
+#   - Both low = Broad weakness
+#
+#   This is NOT an error - it's diagnostic information.
