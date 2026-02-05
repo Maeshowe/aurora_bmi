@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Classification** | Internal Technical Reference |
 | **Scope** | Market Participation Health Diagnostic System |
 | **Instrument Universe** | US Equity Market (aggregate breadth) |
@@ -82,7 +82,7 @@ Where:
 - pct_MA50 = % of stocks trading above 50-day SMA
 - pct_MA200 = % of stocks trading above 200-day SMA
 
-Currently calculated from 20 mega-cap stocks (AAPL, MSFT, GOOGL, etc.) via FMP technical indicators API.
+Calculated from 50 stocks sampled from the AURORA Universe (quality-filtered NYSE/NASDAQ, $2B+ market cap) via FMP technical indicators API.
 
 ### 3.4 Institutional Participation Overlay (IPO)
 
@@ -200,7 +200,8 @@ aurora_bmi/
 │   ├── scoring/        # Composite, engine
 │   ├── explain/        # Explanation generator
 │   ├── pipeline/       # Daily orchestrator
-│   └── dashboard/      # Streamlit UI
+│   ├── dashboard/      # Streamlit UI
+│   └── universe/       # Quality-filtered stock universe
 ├── config/             # YAML configuration
 ├── data/
 │   ├── raw/            # API cache
