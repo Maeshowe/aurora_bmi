@@ -1,0 +1,16 @@
+[Unit]
+Description=AURORA BMI Streamlit Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=safrtam
+Group=safrtam
+WorkingDirectory=/home/safrtam/aurora_bmi
+Environment="PATH=/home/safrtam/aurora_bmi/.venv/bin"
+ExecStart=/home/safrtam/aurora_bmi/.venv/bin/streamlit run aurora/dashboard/app.py --server.port 8503 --server.headless true --server.address 127.0.0.1
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

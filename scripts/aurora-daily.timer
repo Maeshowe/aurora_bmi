@@ -1,0 +1,13 @@
+[Unit]
+Description=AURORA BMI Daily Data Collection Timer
+Requires=aurora-daily.service
+
+[Timer]
+# Run at 21:05 UTC on weekdays (5 min after OBSIDIAN)
+# After US market close (16:00 EST = 21:00 UTC in winter, 20:00 UTC in summer)
+OnCalendar=Mon..Fri 21:05 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

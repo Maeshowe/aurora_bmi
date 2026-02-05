@@ -1,0 +1,16 @@
+[Unit]
+Description=AURORA BMI Daily Data Collection
+After=network.target
+
+[Service]
+Type=oneshot
+User=safrtam
+Group=safrtam
+WorkingDirectory=/home/safrtam/aurora_bmi
+Environment="PATH=/home/safrtam/aurora_bmi/.venv/bin"
+ExecStart=/home/safrtam/aurora_bmi/.venv/bin/python scripts/run_daily.py
+StandardOutput=append:/home/safrtam/aurora_bmi/logs/daily.log
+StandardError=append:/home/safrtam/aurora_bmi/logs/daily.log
+
+[Install]
+WantedBy=multi-user.target
